@@ -28,7 +28,7 @@ class SchemaCodeGen:
         """Generate SQLAlchemy models."""
         output_file = self.models_output_dir / "__init__.py"
         subprocess.run(
-            ["sqlacodegen", postgres_url, "--outfile", str(output_file)],
+            ["sqlacodegen", "--generator", "declarative", postgres_url, "--outfile", str(output_file)],
             check=True,
         )
 

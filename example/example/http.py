@@ -3,24 +3,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
 from example.models.http import UserLogin
-from example.models.db import User, LoginSession
-from example.db import get_db
+from example.models.db import Users, LoginSessions
+from example.db import with_db_session
 from passlib.context import CryptContext
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def verify_password_hash(username: str, password_hash: str) -> bool: 
-    try:
-        return pwd_context.verify(username, password_hash)
-    except:
-        return False
-
 @router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
-    stmt = select(User).filter(User.username == user.username)
-    result = db.execute(stmt)
-    user_in_db: User = result.scalars().first()
+def login(user: UserLogin, db_session: Session = Depends(with_db_session)):
+    stmt = select(Users).filter(Users.username == user.username)
+    result = db_session.execute(stmt)
+    user_in_db: Users = result.scalars().first()
 
     if not user_in_db:
         raise HTTPException(
@@ -28,18 +22,18 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
             detail="Invalid username or password",
         )
 
-    if not verify_password_hash(user.password, user_in_db.password_hash):
+    if not pwd_context.verify(user.password, user_in_db.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
 
-    login_session = LoginSession(
+    login_session = LoginSessions(
         user_id=user_in_db.id,
         created_at=datetime.utcnow() 
     )
 
-    db.add(login_session)
-    db.commit()
+    db_session.add(login_session)
+    db_session.commit()
 
     return {"message": "Login successful", "user_id": user_in_db.id}

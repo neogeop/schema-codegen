@@ -8,7 +8,7 @@ setup(
         "pyway",
         "testcontainers",
         "sqlalchemy",
-        "sqlacodegen",
+        "sqlacodegen==3.0.0rc5",
     ],
     description="A tool to generate SQLAlchemy models from database schemas using Pyway and SQLAlchemy.",
     classifiers=[
