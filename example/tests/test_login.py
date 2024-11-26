@@ -1,6 +1,4 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
@@ -19,31 +17,24 @@ def postgres_container():
 
 @pytest.fixture(scope="session")
 def test_settings(postgres_container):
-    database_url = postgres_container.get_connection_url()
-    apply_migrations("migrations", database_url)
-    Settings.DATABASE_URL = database_url
+    Settings.DATABASE_URL = postgres_container.get_connection_url()
     return Settings
 
 @pytest.fixture(scope="session")
-def test_engine(test_settings):
-    engine = create_engine(test_settings.DATABASE_URL, echo=True)
-    yield engine
-    engine.dispose()
+def test_apply_migrations(test_settings):
+    apply_migrations("migrations", test_settings.DATABASE_URL)
 
 @pytest.fixture(scope="session")
-def test_session_factory(test_engine):
-    return sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-@pytest.fixture(scope="session")
-def test_db_session(test_session_factory):
-    yield test_session_factory()
-
-@pytest.fixture(scope="session")
-def test_app(test_engine, test_settings, test_session_factory):
+def test_app(test_settings):
     app.dependency_overrides[get_settings] = lambda: test_settings
-    app.dependency_overrides[get_engine] = lambda: test_engine
-    app.dependency_overrides[get_session_factory] = lambda: test_session_factory
     return app
+
+@pytest.fixture(scope="session")
+def test_db_session(test_app, test_apply_migrations, test_settings):
+    engine = get_engine(test_settings)
+    session_gen = get_session_factory(engine)
+    with session_gen() as session:
+        yield session
 
 @pytest.fixture(scope="session")
 def test_user(test_db_session):
@@ -65,7 +56,6 @@ def test_client(test_app):
     return TestClient(test_app)
 
 def test_login_success(test_db_session, test_user, test_client):
-
     plain_password = "correct_password"
     test_db_session.commit()
 
